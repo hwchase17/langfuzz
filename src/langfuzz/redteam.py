@@ -44,6 +44,8 @@ class JudgeState(TypedDict):
     input_2: Any
     output_1: Any
     output_2: Any
+    trace_id_1: str | None
+    trace_id_2: str | None
     judge: dict
 
 
@@ -155,25 +157,31 @@ async def _show_results(r):
     print("**`q`**: To quit, enter `q`")
 
 
+def _normalize_model_result(result: Any) -> tuple[Any, str | None]:
+    if isinstance(result, dict) and "answer" in result:
+        return result["answer"], result.get("trace_id")
+    return result, None
+
+
 def create_judge_graph(call_model: Callable):
     if inspect.iscoroutinefunction(call_model):
 
         async def answer_1(state: JudgeState):
-            answer = await call_model(state["input_1"])
-            return {"output_1": answer}
+            answer, trace_id = _normalize_model_result(await call_model(state["input_1"]))
+            return {"output_1": answer, "trace_id_1": trace_id}
 
         async def answer_2(state: JudgeState):
-            answer = await call_model(state["input_2"])
-            return {"output_2": answer}
+            answer, trace_id = _normalize_model_result(await call_model(state["input_2"]))
+            return {"output_2": answer, "trace_id_2": trace_id}
     else:
 
         def answer_1(state: JudgeState):
-            answer = call_model(state["input_1"])
-            return {"output_1": answer}
+            answer, trace_id = _normalize_model_result(call_model(state["input_1"]))
+            return {"output_1": answer, "trace_id_1": trace_id}
 
         def answer_2(state: JudgeState):
-            answer = call_model(state["input_2"])
-            return {"output_2": answer}
+            answer, trace_id = _normalize_model_result(call_model(state["input_2"]))
+            return {"output_2": answer, "trace_id_2": trace_id}
 
     judge_graph = StateGraph(JudgeState)
     judge_graph.add_node(answer_1)

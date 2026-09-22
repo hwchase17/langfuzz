@@ -14,7 +14,7 @@ def get_client():
     )
 
 
-def call_model(question: str) -> str:
+def call_model(question: str) -> dict[str, str | None]:
     client = get_client()
     thread = client.threads.create()
     run_id = None
@@ -37,8 +37,8 @@ def call_model(question: str) -> str:
         message = result["messages"][-1]
         content = message["content"]
         if isinstance(content, list):
-            return content[0]["text"]
-        return content
+            content = content[0]["text"]
+        return {"answer": content, "trace_id": run_id}
     except Exception:
         print(result)
         print(f"Failed run ID: {run_id}")
@@ -47,4 +47,4 @@ def call_model(question: str) -> str:
 
 if __name__ == "__main__":
     for _ in range(10):
-        print(call_model("What are the main features of LangChain?"))
+        print(call_model("What are the main features of LangChain?")["answer"])

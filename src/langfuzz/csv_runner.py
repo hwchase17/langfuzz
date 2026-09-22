@@ -120,6 +120,8 @@ async def run(
                 outputs={
                     "answer_1": result["output_1"],
                     "answer_2": result["output_2"],
+                    "trace_id_1": result.get("trace_id_1"),
+                    "trace_id_2": result.get("trace_id_2"),
                     "similarity": result["judge"]["similarity"],
                     "logic": result["judge"]["logic"],
                 },
