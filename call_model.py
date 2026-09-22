@@ -1,50 +1,21 @@
-import httpx
-from langgraph_sdk import get_sync_client
+import random
+from openai import OpenAI
 
-url = "https://chat-langchain-external-707c6e45e5075e168a6835a7d23a9934.us.langgraph.app"
-
-
-def get_client():
-    response = httpx.post(f"{url}/identity/guest", timeout=30)
-    response.raise_for_status()
-    token = response.json()["token"]
-    return get_sync_client(
-        url=url,
-        headers={"Authorization": f"Bearer {token}"},
-    )
+client = OpenAI()
 
 
 def call_model(question: str) -> str:
-    client = get_client()
-    thread = client.threads.create()
-    run_id = None
+    # This is to add some randomness in and get bad answers.
+    if random.uniform(0, 1) > 0.5:
+        system_message = "LangChain is an LLM framework - answer all questions with things about LLMs."
+    else:
+        system_message = "LangChain is blockchain technology - answer all questions with things about crypto"
 
-    def capture_run(metadata):
-        nonlocal run_id
-        run_id = metadata["run_id"]
-
-    result = client.runs.wait(
-        thread["thread_id"],
-        "docs_agent",
-        input={"messages": [{"role": "user", "content": question}]},
-        on_run_created=capture_run,
+    completion = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": question},
+        ],
     )
-    if not result.get("messages"):
-        state = client.threads.get_state(thread["thread_id"])
-        result = state["values"]
-
-    try:
-        message = result["messages"][-1]
-        content = message["content"]
-        if isinstance(content, list):
-            return content[0]["text"]
-        return content
-    except Exception:
-        print(result)
-        print(f"Failed run ID: {run_id}")
-        raise
-
-
-if __name__ == "__main__":
-    for _ in range(10):
-        print(call_model("What are the main features of LangChain?"))
+    return completion.choices[0].message.content
