@@ -27,3 +27,17 @@ Goal: find semantically equivalent question pairs whose judged answer similarity
 5. Assistant architecture: internal-instructions refusal versus a researched LangChain/LangGraph architecture answer; score 3.
 
 Scores above are from successful batch runs against the deployed application and the configured `gpt-4o` judge. Because generation is nondeterministic, reruns may produce different scores.
+
+#### Domain-focused fuzzing
+
+A second pass targeted expected customer questions rather than Chat LangChain internals. The productive pattern was a short, plausible customer phrasing whose intended LangChain meaning is clear from product context, paired with an explicit product-specific version. The short form sometimes routes off-topic or to a different abstraction.
+
+Selected domain failures observed below 4:
+
+1. "go back in time" versus LangGraph checkpoint time travel: refusal versus replay instructions; score 1.
+2. "recover from failure" versus LangGraph durable execution: refusal versus checkpoint-resume explanation; score 2.
+3. "delegate work" versus Deep Agents subagents: refusal versus subagent configuration; score 2-3.
+4. "summarize history" versus LangChain summarization middleware: refusal versus middleware implementation; score 2-3.
+5. "switch models" versus dynamic model selection middleware: basic model initialization versus per-request middleware; score 3.
+
+Other useful but less stable seams included Deep Agents filesystem backends, skills versus dynamic tool disclosure, subagents versus LangGraph subgraphs, and agent structured output versus model/tool structured output. All 55 results from this pass are saved in `domain_fuzz_results.csv`.
