@@ -1,0 +1,130 @@
+import argparse
+import asyncio
+import csv
+import importlib.util
+import time
+from typing import Callable
+
+import yaml
+from langsmith import Client
+
+from langfuzz.redteam import _show_results, create_judge_graph
+
+
+def load_pairs(csv_path: str) -> list[dict[str, str]]:
+    with open(csv_path, newline="", encoding="utf-8-sig") as file:
+        reader = csv.DictReader(file)
+        fields = set(reader.fieldnames or [])
+        if {"question_1", "question_2"} <= fields:
+            columns = ("question_1", "question_2")
+        elif {"input_1", "input_2"} <= fields:
+            columns = ("input_1", "input_2")
+        else:
+            raise ValueError(
+                "CSV must contain question_1 and question_2 columns "
+                "(input_1 and input_2 are also supported)"
+            )
+
+        pairs = []
+        for row_number, row in enumerate(reader, start=2):
+            input_1 = row[columns[0]].strip()
+            input_2 = row[columns[1]].strip()
+            if not input_1 or not input_2:
+                raise ValueError(f"CSV row {row_number} contains an empty question")
+            pairs.append({"input_1": input_1, "input_2": input_2})
+    return pairs
+
+
+def load_call_model(file_path: str) -> Callable:
+    spec = importlib.util.spec_from_file_location("call_model_module", file_path)
+    if spec is None or spec.loader is None:
+        raise ValueError(f"Could not load model file: {file_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.call_model
+
+
+async def score_pairs(
+    pairs: list[dict[str, str]],
+    call_model: Callable,
+    config: dict,
+    max_concurrency: int,
+) -> list[dict]:
+    graph = create_judge_graph(call_model)
+    semaphore = asyncio.Semaphore(max_concurrency)
+
+    async def score(pair):
+        async with semaphore:
+            return await graph.ainvoke(pair, {"configurable": config})
+
+    tasks = [asyncio.create_task(score(pair)) for pair in pairs]
+    results = []
+    for task in asyncio.as_completed(tasks):
+        results.append(await task)
+        print(f"Scored {len(results)}/{len(tasks)} pairs")
+    return sorted(results, key=lambda result: result["judge"]["similarity"])
+
+
+async def run(
+    config: dict,
+    csv_path: str,
+    dataset_id: str | None,
+    max_concurrency: int | None,
+    max_similarity: int | None,
+):
+    pairs = load_pairs(csv_path)
+    max_concurrency = max_concurrency or config.get("max_concurrency", 10)
+    max_similarity = max_similarity or config.get("max_similarity", 10)
+    call_model = load_call_model(config["model_file"])
+    results = await score_pairs(pairs, call_model, config, max_concurrency)
+
+    client = Client()
+    dataset_id = dataset_id or config.get("dataset_id")
+    if dataset_id is None:
+        name = f"Redteaming results {time.strftime('%Y-%m-%d %H:%M:%S')}"
+        dataset_id = client.create_dataset(dataset_name=name).id
+        print(f"Created dataset: {name}")
+
+    for result in results:
+        if result["judge"]["similarity"] > max_similarity:
+            continue
+        await _show_results(result)
+        choice = input()
+        if choice == "1":
+            inputs = [{"question": result["input_1"]}]
+        elif choice == "2":
+            inputs = [{"question": result["input_2"]}]
+        elif choice == "3":
+            continue
+        elif choice == "q":
+            break
+        else:
+            inputs = [
+                {"question": result["input_1"]},
+                {"question": result["input_2"]},
+            ]
+        client.create_examples(inputs=inputs, dataset_id=dataset_id)
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Score question pairs from a CSV and curate them into LangSmith"
+    )
+    parser.add_argument("config_path", help="Path to the configuration file")
+    parser.add_argument("csv_path", help="Path to the question-pairs CSV")
+    parser.add_argument("--dataset_id", help="ID of the dataset to use")
+    parser.add_argument("--max_concurrency", type=int)
+    parser.add_argument("--max_similarity", type=int)
+    args = parser.parse_args()
+
+    with open(args.config_path) as file:
+        config = yaml.safe_load(file)
+    asyncio.run(
+        run(
+            config,
+            args.csv_path,
+            args.dataset_id,
+            args.max_concurrency,
+            args.max_similarity,
+        )
+    )

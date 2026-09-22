@@ -97,6 +97,23 @@ If you add a datapoint to a LangSmith dataset, it will be added with a single in
 
 These options can additionally be provided as part of the configuration file.
 
+## Use question pairs from a CSV
+
+To score existing question pairs instead of generating them, create a CSV with `question_1` and `question_2` columns:
+
+```csv
+question_1,question_2
+What is LangChain?,Can you explain LangChain?
+```
+
+Then run:
+
+```
+langfuzz-csv config.yaml questions.csv [options]
+```
+
+This runs both questions through the configured `call_model`, scores the answer similarity, and presents qualifying pairs for the same interactive LangSmith curation flow. It supports `--dataset_id`, `--max_concurrency`, and `--max_similarity`; `input_1` and `input_2` are also accepted as CSV column names.
+
 ## Additional Configuration
 
 You can also configure more aspects of the redteaming agent.
