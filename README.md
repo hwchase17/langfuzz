@@ -114,6 +114,18 @@ langfuzz-csv config.yaml example_questions.csv [options]
 
 This runs both questions through the configured `call_model`, scores the answer similarity, and presents qualifying pairs for the same interactive LangSmith curation flow. It supports `--dataset_id`, `--max_concurrency`, and `--max_similarity`; `input_1` and `input_2` are also accepted as CSV column names.
 
+Add every qualifying scored pair directly to the dataset without prompting:
+
+```
+langfuzz-csv config.yaml example_questions.csv --non-interactive
+```
+
+Each dataset example contains both questions as inputs and both answers, the similarity score, and the judge reasoning as outputs. Use `--rows` to run selected 1-based data rows (the header is not counted); comma-separated rows and inclusive ranges can be combined:
+
+```
+langfuzz-csv config.yaml example_questions.csv --non-interactive --rows 1,3-5
+```
+
 ## Additional Configuration
 
 You can also configure more aspects of the redteaming agent.

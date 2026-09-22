@@ -11,7 +11,26 @@ from langsmith import Client
 from langfuzz.redteam import _show_results, create_judge_graph
 
 
-def load_pairs(csv_path: str) -> list[dict[str, str]]:
+def parse_rows(value: str) -> set[int]:
+    rows = set()
+    for part in value.split(","):
+        bounds = part.strip().split("-", 1)
+        try:
+            start = int(bounds[0])
+            end = int(bounds[-1])
+        except ValueError as error:
+            raise argparse.ArgumentTypeError("rows must look like 1,3-5") from error
+        if start < 1 or end < start:
+            raise argparse.ArgumentTypeError(
+                "row numbers must be positive ascending ranges"
+            )
+        rows.update(range(start, end + 1))
+    return rows
+
+
+def load_pairs(
+    csv_path: str, selected_rows: set[int] | None = None
+) -> list[dict[str, str]]:
     with open(csv_path, newline="", encoding="utf-8-sig") as file:
         reader = csv.DictReader(file)
         fields = set(reader.fieldnames or [])
@@ -26,11 +45,13 @@ def load_pairs(csv_path: str) -> list[dict[str, str]]:
             )
 
         pairs = []
-        for row_number, row in enumerate(reader, start=2):
+        for pair_number, row in enumerate(reader, start=1):
+            if selected_rows is not None and pair_number not in selected_rows:
+                continue
             input_1 = row[columns[0]].strip()
             input_2 = row[columns[1]].strip()
             if not input_1 or not input_2:
-                raise ValueError(f"CSV row {row_number} contains an empty question")
+                raise ValueError(f"CSV row {pair_number + 1} contains an empty question")
             pairs.append({"input_1": input_1, "input_2": input_2})
     return pairs
 
@@ -71,8 +92,10 @@ async def run(
     dataset_id: str | None,
     max_concurrency: int | None,
     max_similarity: int | None,
+    selected_rows: set[int] | None,
+    non_interactive: bool,
 ):
-    pairs = load_pairs(csv_path)
+    pairs = load_pairs(csv_path, selected_rows)
     max_concurrency = max_concurrency or config.get("max_concurrency", 10)
     max_similarity = max_similarity or config.get("max_similarity", 10)
     call_model = load_call_model(config["model_file"])
@@ -87,6 +110,21 @@ async def run(
 
     for result in results:
         if result["judge"]["similarity"] > max_similarity:
+            continue
+        if non_interactive:
+            client.create_example(
+                inputs={
+                    "question_1": result["input_1"],
+                    "question_2": result["input_2"],
+                },
+                outputs={
+                    "answer_1": result["output_1"],
+                    "answer_2": result["output_2"],
+                    "similarity": result["judge"]["similarity"],
+                    "logic": result["judge"]["logic"],
+                },
+                dataset_id=dataset_id,
+            )
             continue
         await _show_results(result)
         choice = input()
@@ -115,6 +153,16 @@ def main():
     parser.add_argument("--dataset_id", help="ID of the dataset to use")
     parser.add_argument("--max_concurrency", type=int)
     parser.add_argument("--max_similarity", type=int)
+    parser.add_argument(
+        "--rows",
+        type=parse_rows,
+        help="1-based data rows to run, for example 1,3-5",
+    )
+    parser.add_argument(
+        "--non-interactive",
+        action="store_true",
+        help="Add scored pairs directly to the dataset without prompting",
+    )
     args = parser.parse_args()
 
     with open(args.config_path) as file:
@@ -126,5 +174,7 @@ def main():
             args.dataset_id,
             args.max_concurrency,
             args.max_similarity,
+            args.rows,
+            args.non_interactive,
         )
     )
