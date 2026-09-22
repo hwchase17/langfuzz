@@ -112,7 +112,7 @@ Then run:
 langfuzz-csv config.yaml example_questions.csv [options]
 ```
 
-This runs both questions through the configured `call_model`, scores the answer similarity, and presents qualifying pairs for the same interactive LangSmith curation flow. It supports `--dataset_id`, `--max_concurrency`, and `--max_similarity`; `input_1` and `input_2` are also accepted as CSV column names.
+This runs both questions through the configured `call_model`, scores the answer similarity, and presents qualifying pairs for the same interactive LangSmith curation flow. Rows with populated `answer` or both `answer_1` and `answer_2` columns are skipped by default; pass `--rerun` to run every row. It supports `--dataset_id`, `--max_concurrency`, and `--max_similarity`; `input_1` and `input_2` are also accepted as CSV column names.
 
 Add every qualifying scored pair directly to the dataset without prompting:
 

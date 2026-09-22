@@ -29,7 +29,9 @@ def parse_rows(value: str) -> set[int]:
 
 
 def load_pairs(
-    csv_path: str, selected_rows: set[int] | None = None
+    csv_path: str,
+    selected_rows: set[int] | None = None,
+    rerun: bool = False,
 ) -> list[dict[str, str]]:
     with open(csv_path, newline="", encoding="utf-8-sig") as file:
         reader = csv.DictReader(file)
@@ -43,10 +45,15 @@ def load_pairs(
                 "CSV must contain question_1 and question_2 columns "
                 "(input_1 and input_2 are also supported)"
             )
-
         pairs = []
         for pair_number, row in enumerate(reader, start=1):
             if selected_rows is not None and pair_number not in selected_rows:
+                continue
+            has_answer = (row.get("answer") or "").strip() or all(
+                (row.get(column) or "").strip()
+                for column in ("answer_1", "answer_2")
+            )
+            if not rerun and has_answer:
                 continue
             input_1 = row[columns[0]].strip()
             input_2 = row[columns[1]].strip()
@@ -94,8 +101,12 @@ async def run(
     max_similarity: int | None,
     selected_rows: set[int] | None,
     non_interactive: bool,
+    rerun: bool,
 ):
-    pairs = load_pairs(csv_path, selected_rows)
+    pairs = load_pairs(csv_path, selected_rows, rerun)
+    if not pairs:
+        print("No unanswered rows to run")
+        return
     max_concurrency = max_concurrency or config.get("max_concurrency", 10)
     max_similarity = max_similarity or config.get("max_similarity", 10)
     call_model = load_call_model(config["model_file"])
@@ -163,6 +174,11 @@ def main():
         action="store_true",
         help="Add scored pairs directly to the dataset without prompting",
     )
+    parser.add_argument(
+        "--rerun",
+        action="store_true",
+        help="Run all rows, including rows that already have answers",
+    )
     args = parser.parse_args()
 
     with open(args.config_path) as file:
@@ -176,5 +192,6 @@ def main():
             args.max_similarity,
             args.rows,
             args.non_interactive,
+            args.rerun,
         )
     )
