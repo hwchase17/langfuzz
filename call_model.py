@@ -19,12 +19,27 @@ def get_client():
 
 def call_model(question: str) -> str:
     client = get_client()
-    result = client.runs.wait(
-        None,  # Stateless run; use a thread ID for conversation history.
-        "docs_agent",
-        input={"messages": [{"role": "user", "content": question}]},
-    )
-    return result["messages"][-1]["content"]
+    run_id = None
+
+    def capture_run(metadata):
+        nonlocal run_id
+        run_id = metadata["run_id"]
+
+    try:
+        result = client.runs.wait(
+            None,  # Stateless run; use a thread ID for conversation history.
+            "docs_agent",
+            input={"messages": [{"role": "user", "content": question}]},
+            on_run_created=capture_run,
+        )
+        message = result["messages"][-1]
+        content = message["content"]
+        if isinstance(content, list):
+            return content[0]["text"]
+        return content
+    except Exception:
+        print(f"Failed run ID: {run_id}")
+        raise
 
 
 if __name__ == "__main__":
