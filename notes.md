@@ -41,3 +41,9 @@ Selected domain failures observed below 4:
 5. "switch models" versus dynamic model selection middleware: basic model initialization versus per-request middleware; score 3.
 
 Other useful but less stable seams included Deep Agents filesystem backends, skills versus dynamic tool disclosure, subagents versus LangGraph subgraphs, and agent structured output versus model/tool structured output. All 55 results from this pass are saved in `domain_fuzz_results.csv`.
+
+#### Semantic-equivalence quality bar
+
+A low score is not useful when one question omits context required to identify the intended product concept. Questions such as "How do I go back in time?" and "How do I recover from failure?" are underspecified outside their explicit LangGraph paraphrases, so their divergent answers are expected routing behavior rather than strong fuzz findings.
+
+Each question must independently identify the same user intent. Prefer realistic variations involving aliases, renamed products, deprecated versus current APIs, Python versus JavaScript terminology, equivalent error descriptions, reordered constraints, abbreviations, or old versus new configuration names. Do not manufacture divergence by removing the product name, feature, operation, or other disambiguating context from only one side.
