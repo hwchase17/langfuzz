@@ -1,12 +1,9 @@
-from functools import cache
-
 import httpx
 from langgraph_sdk import get_sync_client
 
 url = "https://chat-langchain-external-707c6e45e5075e168a6835a7d23a9934.us.langgraph.app"
 
 
-@cache
 def get_client():
     response = httpx.post(f"{url}/identity/guest", timeout=30)
     response.raise_for_status()
@@ -32,6 +29,10 @@ def call_model(question: str) -> str:
         input={"messages": [{"role": "user", "content": question}]},
         on_run_created=capture_run,
     )
+    if not result.get("messages"):
+        state = client.threads.get_state(thread["thread_id"])
+        result = state["values"]
+
     try:
         message = result["messages"][-1]
         content = message["content"]
@@ -45,4 +46,5 @@ def call_model(question: str) -> str:
 
 
 if __name__ == "__main__":
-    print(call_model("what is langchain"))
+    for _ in range(10):
+        print(call_model("What are the main features of LangChain?"))
