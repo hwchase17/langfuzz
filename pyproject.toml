@@ -19,6 +19,7 @@ dependencies = [
 langfuzz = "langfuzz.redteam:main"
 langfuzz-dump = "langfuzz.redteam:dump"
 langfuzz-csv = "langfuzz.csv_runner:main"
+counter-fuzz = "langfuzz.counter_fuzz:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
