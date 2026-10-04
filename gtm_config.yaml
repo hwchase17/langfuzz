@@ -1,0 +1,3 @@
+chatbot_description: "GTM sales assistant for account research, pipeline and consumption analysis, pricing, and competitive positioning. Runs in validation replay mode with external writes and delivery blocked."
+model_file: "call_gtm.py"
+max_concurrency: 1

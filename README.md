@@ -145,6 +145,25 @@ Users can choose to add the questions to a dataset for further analysis or train
 Persistence
 If a persistence path is provided, the tool will save generated questions and dataset information between runs. This allows for continuous red teaming sessions without duplicating questions.
 
+## GTM deployment
+
+`call_gtm.py` targets the GTM deployment's `main` graph without changing the Chat LangChain connector. It uses `LANGSMITH_API_KEY` and always merges boolean `__engine_validation_replay__: true` into the run's `config.configurable`, overriding attempts to disable it.
+
+Load your existing environment and run a single question:
+
+```sh
+set -a
+. ./.env
+set +a
+python call_gtm.py "How does LangSmith help evaluate an LLM application?"
+```
+
+Use `gtm_config.yaml` with the LangFuzz commands to target GTM. The connector returns `answer` and `trace_id` and creates an isolated thread per question. Python callers can pass an existing run configuration as the optional second argument to `call_model`.
+
+By default, a synthetic `U_LOCAL_LANGFUZZ` principal selects the interactive web chat profile without impersonating a real rep. Set `GTM_USER_ID` to your own Slack member ID when testing your personal context; the LangSmith user UUID is not a Slack identity. Synthetic runs do not validate real-rep integrations or memory access.
+
+Replay mode blocks external delivery and write tools and makes saved memory read-only, but local/checkpoint file tools remain allowed. Threads and checkpoints are still persisted. The safety flag is supported by `main`, not necessarily other deployment graphs.
+
 ## Use without LangSmith
 
 You can also use this redteaming agent without LangSmith and dump all the results to a local file. To do this, use the following command:
